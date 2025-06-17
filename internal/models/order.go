@@ -20,3 +20,7 @@ const (
 	StatusDelivered OrderStatus = "delivered"
 	StatusCancelled OrderStatus = "cancelled"
 )
+
+type OrderUpdateInput struct {
+	Status *OrderStatus `json:"status"`
+}
