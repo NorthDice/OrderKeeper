@@ -3,6 +3,8 @@ package repository
 import (
 	"OrderKeeper/internal/models"
 	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 type Authorization interface {
@@ -21,4 +23,11 @@ type Order interface {
 type Repository struct {
 	Authorization
 	Order
+}
+
+func NewRepository(db *pgxpool.Pool, logger *zap.Logger) *Repository {
+	return &Repository{
+		Authorization: NewAuthorizationRepository(db, logger),
+		Order:         NewOrderRepository(db, logger),
+	}
 }
