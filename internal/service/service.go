@@ -2,7 +2,9 @@ package service
 
 import (
 	"OrderKeeper/internal/models"
+	"OrderKeeper/internal/repository"
 	"context"
+	"go.uber.org/zap"
 )
 
 type Authorization interface {
@@ -22,4 +24,11 @@ type Order interface {
 type Service struct {
 	Authorization
 	Order
+}
+
+func NewService(repo repository.Repository, logger zap.Logger) *Service {
+	return &Service{
+		Authorization: NewAuthorizationService(repo.Authorization, logger),
+		Order:         NewOrderService(repo.Order, logger),
+	}
 }
