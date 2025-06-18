@@ -2,14 +2,6 @@ package models
 
 import "time"
 
-type Order struct {
-	ID        int       `json:"id"`
-	UserID    int       `json:"user_id"`
-	Status    int       `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 type OrderStatus string
 
 const (
@@ -20,6 +12,14 @@ const (
 	StatusDelivered OrderStatus = "delivered"
 	StatusCancelled OrderStatus = "cancelled"
 )
+
+type Order struct {
+	ID        int         `json:"id"`
+	UserID    int         `json:"user_id"`
+	Status    OrderStatus `json:"status"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+}
 
 type OrderUpdateInput struct {
 	Status *OrderStatus `json:"status"`
