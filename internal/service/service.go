@@ -26,7 +26,7 @@ type Service struct {
 	Order
 }
 
-func NewService(repo repository.Repository, logger zap.Logger) *Service {
+func NewService(repo *repository.Repository, logger *zap.Logger) *Service {
 	return &Service{
 		Authorization: NewAuthorizationService(repo.Authorization, logger),
 		Order:         NewOrderService(repo.Order, logger),

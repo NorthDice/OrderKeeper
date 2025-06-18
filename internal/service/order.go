@@ -9,10 +9,10 @@ import (
 
 type OrderService struct {
 	repository repository.Order
-	logger     zap.Logger
+	logger     *zap.Logger
 }
 
-func NewOrderService(repo repository.Order, logger zap.Logger) *OrderService {
+func NewOrderService(repo repository.Order, logger *zap.Logger) *OrderService {
 	return &OrderService{
 		repository: repo,
 		logger:     logger,

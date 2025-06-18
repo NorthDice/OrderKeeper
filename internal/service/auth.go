@@ -9,10 +9,10 @@ import (
 
 type AuthorizationService struct {
 	repository.Authorization
-	logger zap.Logger
+	logger *zap.Logger
 }
 
-func NewAuthorizationService(repository repository.Authorization, logger zap.Logger) *AuthorizationService {
+func NewAuthorizationService(repository repository.Authorization, logger *zap.Logger) *AuthorizationService {
 	return &AuthorizationService{
 		Authorization: repository,
 		logger:        logger,
