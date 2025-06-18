@@ -2,7 +2,7 @@ package main
 
 import (
 	"OrderKeeper/internal/config"
-	"OrderKeeper/internal/handlers"
+	"OrderKeeper/internal/handler"
 	"OrderKeeper/internal/repository"
 	"OrderKeeper/internal/service"
 	"OrderKeeper/server"
@@ -46,8 +46,8 @@ func main() {
 		os.Exit(1)
 	}
 	repo := repository.NewRepository(db, log)
-	service := service.NewService(repo, log)
-	handlers := handlers.NewHandler(service, log)
+	services := service.NewService(repo, log)
+	handlers := handler.NewHandler(services, log)
 
 	srv := new(server.Server)
 	go func() {
