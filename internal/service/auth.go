@@ -5,11 +5,21 @@ import (
 	"OrderKeeper/internal/repository"
 	"context"
 	"fmt"
+	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"os"
 	"time"
 )
 
+const (
+	tokenTTL = 12 * time.Hour
+)
+
+type tokenClaims struct {
+	jwt.RegisteredClaims
+	UserID int `json:"user_id"`
+}
 type AuthorizationService struct {
 	repo   repository.Authorization
 	logger *zap.Logger
@@ -52,11 +62,60 @@ func (a *AuthorizationService) CreateUser(ctx context.Context, user models.User)
 	return id, nil
 }
 
-func (a *AuthorizationService) GenerateToken(ctx context.Context, user models.User) (string, error) {
-	return "", nil
+func (a *AuthorizationService) GenerateToken(ctx context.Context, username, password string) (string, error) {
+	start := time.Now()
+	a.logger.Info("user get process started",
+		zap.String("username", username),
+	)
+
+	user, err := a.repo.GetUser(ctx, username, password)
+	if err != nil {
+		a.logger.Error("failed to get user",
+			zap.String("username", username),
+			zap.Error(err),
+			zap.Duration("total_duration", time.Since(start)),
+		)
+		return "", fmt.Errorf("failed to get user: %w", err)
+	}
+
+	a.logger.Info("token generation process started",
+		zap.String("username", username),
+		zap.Int("user_id", user.ID),
+	)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &tokenClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenTTL)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		UserID: user.ID,
+	})
+
+	a.logger.Info("token generated successfully",
+		zap.String("username", username),
+		zap.Int("user_id", user.ID),
+		zap.Duration("total_service_duration", time.Since(start)),
+	)
+
+	return token.SignedString([]byte(os.Getenv("SIGNING_KEY")))
 }
 func (a *AuthorizationService) ParseToken(ctx context.Context, token string) (int, error) {
-	return 0, nil
+	parsedToken, err := jwt.ParseWithClaims(token, &tokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("SIGNING_KEY")), nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	claims, ok := parsedToken.Claims.(*tokenClaims)
+	if !ok || !parsedToken.Valid {
+		return 0, fmt.Errorf("invalid token")
+	}
+
+	return claims.UserID, nil
 }
 
 func generatePasswordHash(password string) string {

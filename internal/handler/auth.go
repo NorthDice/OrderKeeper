@@ -19,6 +19,16 @@ type SignUpResponse struct {
 	Message string `json:"message"`
 }
 
+type SignInRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
+type SignInResponse struct {
+	Token   string `json:"token"`
+	Message string `json:"message"`
+}
+
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Code    string `json:"code,omitempty"`
@@ -109,5 +119,64 @@ func (h *Handler) signUp(c *gin.Context) {
 	})
 }
 func (h *Handler) signIn(c *gin.Context) {
+	start := time.Now()
+	clientIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
 
+	h.logger.Info("signin request started",
+		zap.String("method", c.Request.Method),
+		zap.String("path", c.Request.URL.Path),
+		zap.String("client_ip", clientIP),
+		zap.String("user_agent", userAgent),
+	)
+
+	var input SignInRequest
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		h.logger.Warn("validation failed",
+			zap.String("client_ip", clientIP),
+			zap.String("error", err.Error()),
+			zap.Duration("duration", time.Since(start)),
+		)
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "Invalid input data",
+			Code:    ErrCodeValidation,
+			Details: err.Error(),
+		})
+		return
+	}
+
+	h.logger.Info("signin validation passed",
+		zap.String("client_ip", clientIP),
+		zap.String("username", input.Username),
+	)
+
+	token, err := h.services.Authorization.GenerateToken(c.Request.Context(), input.Username, input.Password)
+	if err != nil {
+		h.logger.Error("generate token failed",
+			zap.String("client_ip", clientIP),
+			zap.String("username", input.Username),
+			zap.Error(err),
+			zap.Duration("duration", time.Since(start)),
+		)
+		statusCode := http.StatusInternalServerError
+		errorCode := ErrCodeInternal
+		errorMsg := "Failed to generate token"
+		c.JSON(statusCode, ErrorResponse{
+			Error: errorMsg,
+			Code:  errorCode,
+		})
+		return
+	}
+
+	h.logger.Info("generate token passed",
+		zap.String("client_ip", clientIP),
+		zap.String("username", input.Username),
+		zap.Int("status_code", http.StatusOK),
+		zap.Duration("duration", time.Since(start)),
+	)
+	c.JSON(http.StatusOK, SignInResponse{
+		Token:   token,
+		Message: "Token generated successfully",
+	})
 }

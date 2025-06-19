@@ -9,7 +9,7 @@ import (
 
 type Authorization interface {
 	CreateUser(ctx context.Context, user models.User) (int, error)
-	GenerateToken(ctx context.Context, user models.User) (string, error)
+	GenerateToken(ctx context.Context, username, password string) (string, error)
 	ParseToken(ctx context.Context, token string) (int, error)
 }
 
