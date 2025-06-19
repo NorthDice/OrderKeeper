@@ -29,12 +29,6 @@ type SignInResponse struct {
 	Message string `json:"message"`
 }
 
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Code    string `json:"code,omitempty"`
-	Details string `json:"details,omitempty"`
-}
-
 const (
 	ErrCodeValidation = "VALIDATION_ERROR"
 	ErrCodeInternal   = "INTERNAL_ERROR"

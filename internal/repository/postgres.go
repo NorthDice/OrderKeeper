@@ -10,6 +10,23 @@ const (
 	userTable   = "users"
 	ordersTable = "orders"
 )
+const (
+	queryInsertUser = `
+		INSERT INTO users (username, email, password)
+		VALUES ($1, $2, $3)
+		RETURNING id
+	`
+	querySelectUser = `
+		SELECT id, username, email, password FROM users
+		WHERE username = $1
+	`
+)
+const (
+	queryInsertOrder = `
+		INSERT INTO orders (user_id, status)
+	    VALUES ($1, $2)
+	`
+)
 
 type Config struct {
 	Host     string

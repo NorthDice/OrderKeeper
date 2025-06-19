@@ -30,7 +30,6 @@ func NewAuthorizationRepository(db *pgxpool.Pool, logger *zap.Logger) *Authoriza
 
 func (a *AuthorizationRepository) CreateUser(ctx context.Context, user models.User) (int, error) {
 	start := time.Now()
-
 	a.logger.Debug("database insert operation started",
 		zap.String("email", user.Email),
 		zap.String("username", user.Username),
@@ -40,12 +39,8 @@ func (a *AuthorizationRepository) CreateUser(ctx context.Context, user models.Us
 	ctx, cancel := context.WithTimeout(ctx, DefaultDBTimeout)
 	defer cancel()
 
-	query := `INSERT INTO users (username, email, password)
-              VALUES ($1, $2, $3)
-              RETURNING id`
-
 	var id int
-	err := a.db.QueryRow(ctx, query, user.Username, user.Email, user.Password).Scan(&id)
+	err := a.db.QueryRow(ctx, queryInsertUser, user.Username, user.Email, user.Password).Scan(&id)
 	duration := time.Since(start)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -58,7 +53,6 @@ func (a *AuthorizationRepository) CreateUser(ctx context.Context, user models.Us
 				zap.Error(err))
 			return 0, fmt.Errorf("database query timeout after %v: %w", DefaultDBTimeout, err)
 		}
-
 		a.logger.Error("database insert failed",
 			zap.String("email", user.Email),
 			zap.String("username", user.Username),
@@ -91,7 +85,6 @@ func (a *AuthorizationRepository) CreateUser(ctx context.Context, user models.Us
 
 func (a *AuthorizationRepository) GetUser(ctx context.Context, username, password string) (models.User, error) {
 	start := time.Now()
-
 	a.logger.Debug("database get operation started",
 		zap.String("username", username),
 		zap.String("operation", "get_user"),
@@ -100,15 +93,12 @@ func (a *AuthorizationRepository) GetUser(ctx context.Context, username, passwor
 	ctx, cancel := context.WithTimeout(ctx, DefaultDBTimeout)
 	defer cancel()
 
-	query := `SELECT id, username, email, password FROM users
- 			  WHERE username = $1`
-	row := a.db.QueryRow(ctx, query, username)
+	row := a.db.QueryRow(ctx, querySelectUser, username)
 	duration := time.Since(start)
 
 	var user models.User
 	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
 	if err != nil {
-
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			a.logger.Error("database query timeout",
 				zap.String("email", user.Email),
@@ -119,19 +109,15 @@ func (a *AuthorizationRepository) GetUser(ctx context.Context, username, passwor
 				zap.Error(err))
 			return models.User{}, fmt.Errorf("database query timeout after %v: %w", DefaultDBTimeout, err)
 		}
-
 		if errors.Is(err, pgx.ErrNoRows) {
-
 			a.logger.Error("user not found",
 				zap.String("username", username),
 				zap.String("operation", "get_user"),
 				zap.Duration("duration", duration),
 				zap.Error(err),
 			)
-
 			return models.User{}, fmt.Errorf("user not found: %w", err)
 		}
-
 		a.logger.Error("database select failed",
 			zap.String("email", user.Email),
 			zap.String("username", user.Username),
@@ -140,7 +126,6 @@ func (a *AuthorizationRepository) GetUser(ctx context.Context, username, passwor
 			zap.Error(err),
 			zap.Duration("db_duration", duration),
 		)
-
 		return models.User{}, fmt.Errorf("could not get user: %w", err)
 	}
 
