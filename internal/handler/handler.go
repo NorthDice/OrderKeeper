@@ -30,8 +30,8 @@ func (h *Handler) InitRoutes() *gin.Engine {
 	order := r.Group("/order", h.userIdentity)
 	{
 		order.POST("/", h.createOrder)
-		order.GET("/orders", h.getOrders)
-		order.GET("/", h.getOrderById)
+		order.GET("/", h.getOrders)
+		order.GET("/:id", h.getOrderById)
 		order.PUT("/:id", h.updateOrder)
 		order.DELETE("/:id", h.deleteOrder)
 	}
