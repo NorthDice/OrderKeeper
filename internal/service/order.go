@@ -2,7 +2,7 @@ package service
 
 import (
 	"OrderKeeper/internal/models"
-	"OrderKeeper/internal/repository"
+	"OrderKeeper/internal/repository/postgres"
 	"context"
 	"fmt"
 	"go.uber.org/zap"
@@ -10,11 +10,11 @@ import (
 )
 
 type OrderService struct {
-	repository repository.Order
+	repository postgres.Order
 	logger     *zap.Logger
 }
 
-func NewOrderService(repo repository.Order, logger *zap.Logger) *OrderService {
+func NewOrderService(repo postgres.Order, logger *zap.Logger) *OrderService {
 	return &OrderService{
 		repository: repo,
 		logger:     logger,

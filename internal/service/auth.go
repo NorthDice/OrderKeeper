@@ -2,7 +2,7 @@ package service
 
 import (
 	"OrderKeeper/internal/models"
-	"OrderKeeper/internal/repository"
+	"OrderKeeper/internal/repository/postgres"
 	"context"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
@@ -21,11 +21,11 @@ type tokenClaims struct {
 	UserID int `json:"user_id"`
 }
 type AuthorizationService struct {
-	repo   repository.Authorization
+	repo   postgres.Authorization
 	logger *zap.Logger
 }
 
-func NewAuthorizationService(repository repository.Authorization, logger *zap.Logger) *AuthorizationService {
+func NewAuthorizationService(repository postgres.Authorization, logger *zap.Logger) *AuthorizationService {
 	return &AuthorizationService{
 		repo:   repository,
 		logger: logger,

@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"OrderKeeper/internal/models"

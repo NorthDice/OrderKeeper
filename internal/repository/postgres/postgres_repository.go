@@ -1,7 +1,8 @@
-package repository
+package postgres
 
 import (
 	"OrderKeeper/internal/models"
+	"OrderKeeper/internal/repository/cache"
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -29,5 +30,12 @@ func NewRepository(db *pgxpool.Pool, logger *zap.Logger) *Repository {
 	return &Repository{
 		Authorization: NewAuthorizationRepository(db, logger),
 		Order:         NewOrderRepository(db, logger),
+	}
+}
+
+func NewCachedRepository(db *pgxpool.Pool, cache *cache.RedisCache, logger *zap.Logger) *Repository {
+	return &Repository{
+		Authorization: NewCachedAuthRepository(db, cache, logger),
+		Order:         NewCachedOrderRepository(db, cache, logger),
 	}
 }
