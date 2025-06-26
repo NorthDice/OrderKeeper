@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"OrderKeeper/internal/handler/metrics"
 	"OrderKeeper/internal/models"
 	"OrderKeeper/internal/repository/cache"
 	"context"
@@ -32,6 +33,8 @@ func (c *CachedAuthRepository) CreateUser(ctx context.Context, user models.User)
 		return 0, fmt.Errorf("failed to create user in auth repository: %w", err)
 	}
 
+	metrics.RecordUserRegistration()
+
 	user.ID = userID
 	cacheKey := fmt.Sprintf("user:username:%s", user.Username)
 	if cacheErr := c.cache.Set(ctx, cacheKey, user, 1*time.Hour); cacheErr != nil {
@@ -54,6 +57,7 @@ func (c *CachedAuthRepository) GetUser(ctx context.Context, username, password s
 			c.logger.Debug("User retrieved from cache",
 				zap.String("username", username),
 			)
+			metrics.RecordCacheHit("user")
 			return cachedUser, nil
 		}
 		return models.User{}, fmt.Errorf("invalid credentials")
@@ -64,6 +68,9 @@ func (c *CachedAuthRepository) GetUser(ctx context.Context, username, password s
 			zap.String("username", username),
 		)
 	}
+
+	metrics.RecordCacheMiss("user")
+
 	user, err := c.authRepo.GetUser(ctx, username, password)
 	if err != nil {
 		c.logger.Error("failed to get user from auth repository",

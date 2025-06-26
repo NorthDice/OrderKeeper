@@ -37,6 +37,6 @@ COPY --from=build /app/.env .env
 
 USER appuser
 
-EXPOSE 8085
+EXPOSE 8080
 
 ENTRYPOINT ["/order-keeper"]

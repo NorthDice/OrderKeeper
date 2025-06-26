@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"OrderKeeper/internal/handler/metrics"
 	"OrderKeeper/internal/models"
 	"OrderKeeper/internal/repository/cache"
 	"context"
@@ -32,6 +33,8 @@ func (c *CachedOrderRepository) CreateOrder(ctx context.Context, userID int, ord
 		return err
 	}
 
+	metrics.RecordOrder("created")
+
 	listCacheKey := fmt.Sprintf("orders:user:%d", userID)
 	if cacheErr := c.cache.Delete(ctx, listCacheKey); cacheErr != nil {
 		c.logger.Warn("Failed to invalidate order list cache",
@@ -58,6 +61,7 @@ func (c *CachedOrderRepository) GetOrders(ctx context.Context, userID int) ([]mo
 	err := c.cache.Get(ctx, cacheKey, &cachedOrders)
 	if err == nil {
 		c.logger.Debug("Orders found in cache", zap.Int("userID", userID))
+		metrics.RecordCacheHit("user_orders")
 		return cachedOrders, nil
 	}
 
@@ -67,6 +71,8 @@ func (c *CachedOrderRepository) GetOrders(ctx context.Context, userID int) ([]mo
 			zap.Int("userID", userID),
 		)
 	}
+
+	metrics.RecordCacheMiss("user_orders")
 
 	orders, err := c.orderRepo.GetOrders(ctx, userID)
 	if err != nil {
@@ -91,7 +97,9 @@ func (c *CachedOrderRepository) GetOrderByID(ctx context.Context, userID int, or
 	if err == nil {
 		c.logger.Debug("Order found in cache",
 			zap.Int("userID", userID),
-			zap.Int("orderID", orderID))
+			zap.Int("orderID", orderID),
+		)
+		metrics.RecordCacheHit("order")
 		return cachedOrder, nil
 	}
 
@@ -101,6 +109,8 @@ func (c *CachedOrderRepository) GetOrderByID(ctx context.Context, userID int, or
 			zap.Int("userID", userID),
 			zap.Int("orderID", orderID))
 	}
+
+	metrics.RecordCacheMiss("order")
 
 	order, err := c.orderRepo.GetOrderByID(ctx, userID, orderID)
 	if err != nil {
@@ -124,6 +134,8 @@ func (c *CachedOrderRepository) UpdateOrder(ctx context.Context, userID int, ord
 	if err != nil {
 		return err
 	}
+
+	metrics.RecordOrder("updated")
 
 	orderCacheKey := fmt.Sprintf("order:user:%d:id:%d", userID, orderID)
 	listCacheKey := fmt.Sprintf("orders:user:%d", userID)
@@ -149,6 +161,8 @@ func (c *CachedOrderRepository) DeleteOrder(ctx context.Context, userID int, ord
 	if err != nil {
 		return err
 	}
+
+	metrics.RecordOrder("deleted")
 
 	orderCacheKey := fmt.Sprintf("order:user:%d:id:%d", userID, orderID)
 	listCacheKey := fmt.Sprintf("orders:user:%d", userID)

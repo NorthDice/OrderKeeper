@@ -12,26 +12,24 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
 func main() {
-	log, err := zap.NewDevelopment()
-	if err != nil {
-		fmt.Println("unable to initialize logger: %v", err)
-		os.Exit(1)
-	}
+	logger := initLogger()
 
 	if err := config.InitConfig(); err != nil {
 		fmt.Println("unable to initialize config: %v", err)
-		log.Fatal("error initializing config")
+		logger.Fatal("error initializing config")
 		os.Exit(1)
 	}
 
 	if err := godotenv.Load(); err != nil {
-		log.Fatal("error loading .env file")
+		logger.Fatal("error loading .env file")
 		os.Exit(1)
 	}
 
@@ -44,11 +42,11 @@ func main() {
 		SSLMode:  viper.GetString("db.sslmode"),
 	})
 	if err != nil {
-		log.Fatal("error initializing postgres db")
+		logger.Fatal("error initializing postgres db")
 		os.Exit(1)
 	}
 	defer db.Close()
-	log.Info("Postgres DB initialized successfully")
+	logger.Info("Postgres DB initialized successfully")
 
 	var repo *postgres.Repository
 
@@ -58,40 +56,64 @@ func main() {
 			Address:  viper.GetString("redis.address"),
 			Password: viper.GetString("redis.password"),
 			Database: viper.GetInt("redis.database"),
-		}, log)
+		}, logger)
 		if err != nil {
-			log.Error("error initializing redis, falling back to non-cached repository", zap.Error(err))
-			repo = postgres.NewRepository(db, log)
+			logger.Error("error initializing redis, falling back to non-cached repository", zap.Error(err))
+			repo = postgres.NewRepository(db, logger)
 		} else {
-			log.Info("Redis initialized successfully, using cached repository")
-			repo = postgres.NewCachedRepository(db, &redisCache, log)
+			logger.Info("Redis initialized successfully, using cached repository")
+			repo = postgres.NewCachedRepository(db, &redisCache, logger)
 		}
 	} else {
-		log.Info("Redis disabled, using non-cached repository")
-		repo = postgres.NewRepository(db, log)
+		logger.Info("Redis disabled, using non-cached repository")
+		repo = postgres.NewRepository(db, logger)
 	}
 
-	services := service.NewService(repo, log)
-	handlers := handler.NewHandler(services, log)
+	services := service.NewService(repo, logger)
+	handlers := handler.NewHandler(services, logger)
 
 	srv := new(server.Server)
 	go func() {
 		if err := srv.Run(viper.GetString("port"), handlers.InitRoutes()); err != nil {
-			log.Fatal("error running server", zap.Error(err))
+			logger.Fatal("error running server", zap.Error(err))
 		}
 	}()
 
-	log.Info("Server started on port", zap.String("port", viper.GetString("port")))
+	logger.Info("Server started on port", zap.String("port", viper.GetString("port")))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info("Keeper shutting down")
+	logger.Info("Keeper shutting down")
 
 	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Error("error occurred while shutting down", zap.Error(err))
+		logger.Error("error occurred while shutting down", zap.Error(err))
 	}
 
-	log.Info("Server exited")
+	logger.Info("Server exited")
+}
+
+func initLogger() *zap.Logger {
+	cfg := zap.NewProductionConfig()
+
+	cfg.EncoderConfig.TimeKey = "time"
+	cfg.EncoderConfig.LevelKey = "level"
+	cfg.EncoderConfig.MessageKey = "msg"
+	cfg.EncoderConfig.CallerKey = "caller"
+	cfg.EncoderConfig.StacktraceKey = "stacktrace"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+
+	cfg.InitialFields = map[string]interface{}{
+		"service": "myapp",
+		"version": "1.0.0",
+	}
+
+	logger, err := cfg.Build()
+	if err != nil {
+		log.Fatal("Failed to initialize logger:", err)
+	}
+
+	return logger
 }
