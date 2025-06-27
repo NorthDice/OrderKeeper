@@ -81,11 +81,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      DB_HOST: postgres
-      DB_USER: postgres
-      DB_PASSWORD: 1111
-      DB_NAME: orderdb
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=1111
+      - DB_NAME=orderdb
+      - REDIS_ADDR=redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_ENABLE=true
     ports:
       - "8080:8080"
 

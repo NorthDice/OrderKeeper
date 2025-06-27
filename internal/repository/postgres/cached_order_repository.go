@@ -59,13 +59,30 @@ func (c *CachedOrderRepository) GetOrders(ctx context.Context, userID int) ([]mo
 
 	var cachedOrders []models.Order
 	err := c.cache.Get(ctx, cacheKey, &cachedOrders)
-	if err == nil {
-		c.logger.Debug("Orders found in cache", zap.Int("userID", userID))
-		metrics.RecordCacheHit("user_orders")
-		return cachedOrders, nil
+	if err == nil && len(cachedOrders) > 0 {
+		validOrders := make([]models.Order, 0, len(cachedOrders))
+		for _, order := range cachedOrders {
+			if order.ID > 0 {
+				validOrders = append(validOrders, order)
+			}
+		}
+
+		if len(validOrders) > 0 {
+			c.logger.Debug("Valid orders found in cache",
+				zap.Int("userID", userID),
+				zap.Int("count", len(validOrders)),
+			)
+			metrics.RecordCacheHit("user_orders")
+			return validOrders, nil
+		} else {
+			c.logger.Warn("Cache contained invalid orders, invalidating",
+				zap.Int("userID", userID),
+			)
+			c.cache.Delete(ctx, cacheKey)
+		}
 	}
 
-	if !errors.Is(err, redis.Nil) {
+	if !errors.Is(err, redis.Nil) && err != nil {
 		c.logger.Warn("Redis error when getting orders",
 			zap.Error(err),
 			zap.Int("userID", userID),
@@ -79,13 +96,19 @@ func (c *CachedOrderRepository) GetOrders(ctx context.Context, userID int) ([]mo
 		return nil, fmt.Errorf("failed to get orders from orders repository: %w", err)
 	}
 
-	if cacheErr := c.cache.Set(ctx, cacheKey, orders, 15*time.Minute); cacheErr != nil {
-		c.logger.Warn("Failed to cache orders",
-			zap.Error(cacheErr),
-			zap.Int("userID", userID))
+	if len(orders) > 0 {
+		if cacheErr := c.cache.Set(ctx, cacheKey, orders, 15*time.Minute); cacheErr != nil {
+			c.logger.Warn("Failed to cache orders",
+				zap.Error(cacheErr),
+				zap.Int("userID", userID))
+		} else {
+			c.logger.Debug("Orders cached successfully",
+				zap.Int("userID", userID),
+				zap.Int("count", len(orders)),
+			)
+		}
 	}
 
-	c.logger.Debug("Orders loaded from database and cached", zap.Int("userID", userID))
 	return orders, nil
 }
 
@@ -95,15 +118,26 @@ func (c *CachedOrderRepository) GetOrderByID(ctx context.Context, userID int, or
 
 	err := c.cache.Get(ctx, cacheKey, &cachedOrder)
 	if err == nil {
-		c.logger.Debug("Order found in cache",
-			zap.Int("userID", userID),
-			zap.Int("orderID", orderID),
-		)
-		metrics.RecordCacheHit("order")
-		return cachedOrder, nil
+		if cachedOrder.ID > 0 && cachedOrder.ID == orderID {
+			c.logger.Debug("Valid order found in cache",
+				zap.Int("userID", userID),
+				zap.Int("orderID", orderID),
+				zap.Int("cached_order_id", cachedOrder.ID),
+			)
+			metrics.RecordCacheHit("order")
+			return cachedOrder, nil
+		} else {
+			c.logger.Warn("Cache returned invalid order data, invalidating cache",
+				zap.Int("userID", userID),
+				zap.Int("requested_orderID", orderID),
+				zap.Int("cached_order_id", cachedOrder.ID),
+			)
+
+			c.cache.Delete(ctx, cacheKey)
+		}
 	}
 
-	if !errors.Is(err, redis.Nil) {
+	if !errors.Is(err, redis.Nil) && err != nil {
 		c.logger.Warn("Redis error when getting order",
 			zap.Error(err),
 			zap.Int("userID", userID),
@@ -117,17 +151,22 @@ func (c *CachedOrderRepository) GetOrderByID(ctx context.Context, userID int, or
 		return models.Order{}, err
 	}
 
-	if cacheErr := c.cache.Set(ctx, cacheKey, order, 30*time.Minute); cacheErr != nil {
-		c.logger.Warn("Failed to cache order",
-			zap.Error(cacheErr),
-			zap.Int("orderID", orderID))
+	if order.ID > 0 {
+		if cacheErr := c.cache.Set(ctx, cacheKey, order, 30*time.Minute); cacheErr != nil {
+			c.logger.Warn("Failed to cache order",
+				zap.Error(cacheErr),
+				zap.Int("orderID", orderID))
+		} else {
+			c.logger.Debug("Order cached successfully",
+				zap.Int("userID", userID),
+				zap.Int("orderID", orderID),
+			)
+		}
 	}
 
-	c.logger.Debug("Order loaded from database and cached",
-		zap.Int("userID", userID),
-		zap.Int("orderID", orderID))
 	return order, nil
 }
+
 func (c *CachedOrderRepository) UpdateOrder(ctx context.Context, userID int, orderID int, input models.OrderUpdateInput) error {
 
 	err := c.orderRepo.UpdateOrder(ctx, userID, orderID, input)

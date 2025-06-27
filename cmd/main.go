@@ -29,20 +29,19 @@ func main() {
 	}
 
 	if err := godotenv.Load(); err != nil {
-		logger.Fatal("error loading .env file")
-		os.Exit(1)
+		logger.Warn("no .env file found, using environment variables")
 	}
 
 	db, err := postgres.NewPostgresDB(context.Background(), postgres.Config{
-		Host:     viper.GetString("db.host"),
-		Port:     viper.GetString("db.port"),
-		Username: viper.GetString("db.username"),
+		Host:     getConfigString("db.host", "DB_HOST"),
+		Port:     getConfigString("db.port", "DB_PORT"),
+		Username: getConfigString("db.username", "DB_USER"),
 		Password: os.Getenv("DB_PASSWORD"),
-		DBName:   viper.GetString("db.dbname"),
-		SSLMode:  viper.GetString("db.sslmode"),
+		DBName:   getConfigString("db.dbname", "DB_NAME"),
+		SSLMode:  getConfigString("db.sslmode", "DB_SSLMODE"),
 	})
 	if err != nil {
-		logger.Fatal("error initializing postgres db")
+		logger.Fatal("error initializing postgres db", zap.Error(err))
 		os.Exit(1)
 	}
 	defer db.Close()
@@ -50,12 +49,25 @@ func main() {
 
 	var repo *postgres.Repository
 
-	redisEnabled := viper.GetBool("redis.enable")
+	redisEnabled := getConfigBool("redis.enable", "REDIS_ENABLE")
 	if redisEnabled {
+		// Try environment variables first, then config file
+		redisAddr := os.Getenv("REDIS_ADDR")
+		if redisAddr == "" {
+			redisHost := getConfigString("redis.host", "REDIS_HOST")
+			redisPort := getConfigString("redis.port", "REDIS_PORT")
+			redisAddr = fmt.Sprintf("%s:%s", redisHost, redisPort)
+		}
+
+		redisPassword := os.Getenv("REDIS_PASSWORD")
+		redisDB := getConfigInt("redis.db", "REDIS_DB")
+
+		logger.Info("Attempting to connect to Redis", zap.String("address", redisAddr))
+
 		redisCache, err := cache.NewRedisCache(context.Background(), cache.RedisConfig{
-			Address:  viper.GetString("redis.address"),
-			Password: viper.GetString("redis.password"),
-			Database: viper.GetInt("redis.database"),
+			Address:  redisAddr,
+			Password: redisPassword,
+			Database: redisDB,
 		}, logger)
 		if err != nil {
 			logger.Error("error initializing redis, falling back to non-cached repository", zap.Error(err))
@@ -74,12 +86,20 @@ func main() {
 
 	srv := new(server.Server)
 	go func() {
-		if err := srv.Run(viper.GetString("port"), handlers.InitRoutes()); err != nil {
+		port := getConfigString("port", "PORT")
+		if port == "" {
+			port = "8080"
+		}
+		if err := srv.Run(":"+port, handlers.InitRoutes()); err != nil {
 			logger.Fatal("error running server", zap.Error(err))
 		}
 	}()
 
-	logger.Info("Server started on port", zap.String("port", viper.GetString("port")))
+	port := getConfigString("port", "PORT")
+	if port == "" {
+		port = "8080"
+	}
+	logger.Info("Server started on port", zap.String("port", port))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -92,6 +112,32 @@ func main() {
 	}
 
 	logger.Info("Server exited")
+}
+
+// Helper functions to prioritize environment variables over config file
+func getConfigString(configKey, envKey string) string {
+	if envVal := os.Getenv(envKey); envVal != "" {
+		return envVal
+	}
+	return viper.GetString(configKey)
+}
+
+func getConfigBool(configKey, envKey string) bool {
+	if envVal := os.Getenv(envKey); envVal != "" {
+		return envVal == "true" || envVal == "1"
+	}
+	return viper.GetBool(configKey)
+}
+
+func getConfigInt(configKey, envKey string) int {
+	if envVal := os.Getenv(envKey); envVal != "" {
+		// You might want to add proper string to int conversion with error handling
+		if envVal == "0" {
+			return 0
+		}
+		return 1 // Default for non-zero values
+	}
+	return viper.GetInt(configKey)
 }
 
 func initLogger() *zap.Logger {

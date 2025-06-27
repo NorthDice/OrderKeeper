@@ -60,7 +60,6 @@ func (c *CachedAuthRepository) GetUser(ctx context.Context, username, password s
 			metrics.RecordCacheHit("user")
 			return cachedUser, nil
 		}
-		return models.User{}, fmt.Errorf("invalid credentials")
 	}
 
 	if errors.Is(err, redis.Nil) {

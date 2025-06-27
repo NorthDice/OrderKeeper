@@ -1,14 +1,14 @@
-port : ":8080"
+port: "8080"
 
 db:
-  username: "postgres"
-  host: "postgres"
+  host: "localhost"
   port: "5432"
+  username: "postgres"
   dbname: "orderdb"
   sslmode: "disable"
 
 redis:
-  host: "redis"
+  enable: true
+  host: "localhost"
   port: "6379"
   db: 0
-  enable: true
